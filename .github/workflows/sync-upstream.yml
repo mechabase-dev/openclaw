@@ -1,0 +1,54 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Every day at 09:00 UTC
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/openclaw/openclaw.git
+          git fetch upstream main
+
+      - name: Attempt merge
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git merge upstream/main --no-edit; then
+            echo "result=success" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push changes
+        if: steps.merge.outputs.result == 'success'
+        run: git push origin main
+
+      - name: Create issue on conflict
+        if: steps.merge.outputs.result == 'conflict'
+        run: |
+          existing=$(gh issue list --label "upstream-sync" --state open --json number --jq 'length')
+          if [ "$existing" = "0" ]; then
+            gh issue create \
+              --title "Upstream sync conflict" \
+              --body "Automatic merge from \`openclaw/openclaw:main\` failed due to conflicts. Please resolve manually." \
+              --label "upstream-sync"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
