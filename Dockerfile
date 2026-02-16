@@ -8,6 +8,7 @@ RUN corepack enable
 
 WORKDIR /app
 
+# Allow custom APT packages via build arg (e.g., postgresql-client, python3-psycopg2)
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
